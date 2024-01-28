@@ -190,10 +190,9 @@ static void tap_send_completed(NetClientState *nc, ssize_t len)
     tap_read_poll(s, true);
 }
 
-/*
+/* host TAP -> qemu iothread -> guest os
  * host收到数据后，发送给TAP, qemu loop通过tap字符设备读取tap的数据，然后，通知iothread，iothread读取
  * tap的数据，并发送给qemu的虚拟网卡。
- * host TAP -> qemu -> guest os
  */
 static void tap_send(void *opaque)
 {
@@ -223,7 +222,7 @@ static void tap_send(void *opaque)
             }
         }
 
-        /* 向qemu虚拟网卡发送数据 */
+        /* 向qemu虚拟网卡前端发送数据 */
         size = qemu_send_packet_async(&s->nc, buf, size, tap_send_completed);
         if (size == 0) {
             tap_read_poll(s, false);
