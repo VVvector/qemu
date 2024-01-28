@@ -293,6 +293,7 @@ static void glib_pollfds_poll(void)
 
 #define MAX_MAIN_LOOP_SPIN (1000)
 
+/* linux - polling */
 static int os_host_main_loop_wait(int64_t timeout)
 {
     GMainContext *context = g_main_context_default();
@@ -545,7 +546,7 @@ static int os_host_main_loop_wait(int64_t timeout)
 
     return select_ret || g_poll_ret;
 }
-#endif
+#endif /* _WIN32 */
 
 static NotifierList main_loop_poll_notifiers =
     NOTIFIER_LIST_INITIALIZER(main_loop_poll_notifiers);
@@ -560,6 +561,9 @@ void main_loop_poll_remove_notifier(Notifier *notify)
     notifier_remove(notify);
 }
 
+/* Qemu主线程中的事件监听。
+ * Qemu的Main函数通过一系列的初始化，并创建线程进行VM的启动，最后来到了main_loop()。
+ */
 void main_loop_wait(int nonblocking)
 {
     MainLoopPoll mlpoll = {
@@ -589,6 +593,7 @@ void main_loop_wait(int nonblocking)
                                       timerlistgroup_deadline_ns(
                                           &main_loop_tlg));
 
+    /* 监听事件 */
     ret = os_host_main_loop_wait(timeout_ns);
     mlpoll.state = ret < 0 ? MAIN_LOOP_POLL_ERR : MAIN_LOOP_POLL_OK;
     notifier_list_notify(&main_loop_poll_notifiers, &mlpoll);
@@ -644,6 +649,12 @@ void qemu_set_fd_handler(int fd,
                          void *opaque)
 {
     iohandler_init();
+
+    /* 将通知加入了io_handlers的事件监听列表中，
+     * fd_read事件对应的动作为tap_send(),fd_write事件对应的动作为tap_writable()。
+     * 例如：
+     * Tap设备的read和write事件。
+     */
     aio_set_fd_handler(iohandler_ctx, fd, fd_read, fd_write, NULL, NULL,
                        opaque);
 }

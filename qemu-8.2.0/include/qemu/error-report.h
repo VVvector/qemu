@@ -48,6 +48,12 @@ bool warn_report_once_cond(bool *printed, const char *fmt, ...)
 
 void error_init(const char *argv0);
 
+#if 1
+    /* Another format to Print (Too ugly to me to use.)*/
+    #define MY_DEBUG(fmt,args...)         info_report("[%s(%05d) - %s]\n  "#fmt"\n", __FILE__, __LINE__, __FUNCTION__, ##args)
+#endif
+
+
 /*
  * Similar to error_report(), except it prints the message just once.
  * Return true when it prints, false otherwise.

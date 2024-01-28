@@ -81,6 +81,8 @@ static void tap_update_fd_handler(TAPState *s)
 static void tap_read_poll(TAPState *s, bool enable)
 {
     s->read_poll = enable;
+
+    /* 挂载到qemu的main loop上 */
     tap_update_fd_handler(s);
 }
 
@@ -103,6 +105,9 @@ static ssize_t tap_write_packet(TAPState *s, const struct iovec *iov, int iovcnt
 {
     ssize_t len;
 
+    MY_DEBUG("tap_write_packet, guest -> host");
+
+    /* 写入tap的字符设备 */
     len = RETRY_ON_EINTR(writev(s->fd, iov, iovcnt));
 
     if (len == -1 && errno == EAGAIN) {
@@ -130,6 +135,7 @@ static ssize_t tap_receive_iov(NetClientState *nc, const struct iovec *iov,
         iovcnt++;
     }
 
+    /* QEMU通过TAP的字符设备接口，发送数据给TAP。 */
     return tap_write_packet(s, iovp, iovcnt);
 }
 
@@ -153,6 +159,9 @@ static ssize_t tap_receive_raw(NetClientState *nc, const uint8_t *buf, size_t si
     return tap_write_packet(s, iov, iovcnt);
 }
 
+/* tap_receive() 进行发包，其实就是len = writev(s->fd, iov, iovcnt)向/dev/net/tun进行写入。
+ * 即是 guest os - > qemu -> host TAP
+ */
 static ssize_t tap_receive(NetClientState *nc, const uint8_t *buf, size_t size)
 {
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
@@ -181,6 +190,11 @@ static void tap_send_completed(NetClientState *nc, ssize_t len)
     tap_read_poll(s, true);
 }
 
+/*
+ * host收到数据后，发送给TAP, qemu loop通过tap字符设备读取tap的数据，然后，通知iothread，iothread读取
+ * tap的数据，并发送给qemu的虚拟网卡。
+ * host TAP -> qemu -> guest os
+ */
 static void tap_send(void *opaque)
 {
     TAPState *s = opaque;
@@ -209,6 +223,7 @@ static void tap_send(void *opaque)
             }
         }
 
+        /* 向qemu虚拟网卡发送数据 */
         size = qemu_send_packet_async(&s->nc, buf, size, tap_send_completed);
         if (size == 0) {
             tap_read_poll(s, false);
@@ -435,6 +450,8 @@ static TAPState *net_tap_fd_init(NetClientState *peer,
     if (tap_probe_vnet_hdr_len(s->fd, s->host_vnet_hdr_len)) {
         tap_fd_set_vnet_hdr_len(s->fd, s->host_vnet_hdr_len);
     }
+
+    /* 挂载polling handle */
     tap_read_poll(s, true);
     s->vhost_net = NULL;
 
@@ -704,6 +721,8 @@ static void net_init_tap_one(const NetdevTapOptions *tap, NetClientState *peer,
                              int vnet_hdr, int fd, Error **errp)
 {
     Error *err = NULL;
+
+    /* 初始化tap handle */
     TAPState *s = net_tap_fd_init(peer, model, name, fd, vnet_hdr);
     int vhostfd;
 
@@ -876,6 +895,7 @@ int net_init_tap(const Netdev *netdev, const char *name,
             return -1;
         }
 
+        /* 初始化tap的polling */
         net_init_tap_one(tap, peer, "tap", name, NULL,
                          script, downscript,
                          vhostfdname, vnet_hdr, fd, &err);

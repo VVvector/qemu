@@ -2000,12 +2000,14 @@ static bool object_create_late(const char *type)
     return !object_create_early(type) && !object_create_pre_sandbox(type);
 }
 
+/* 后端的初始化 */
 static void qemu_create_late_backends(void)
 {
     if (qtest_chrdev) {
         qtest_server_init(qtest_chrdev, qtest_log, &error_fatal);
     }
 
+    /* 网络后端的初始化 */
     net_init_clients();
 
     object_option_foreach_add(object_create_late);

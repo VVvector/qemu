@@ -561,9 +561,21 @@ e1000_send_packet(E1000State *s, const uint8_t *buf, int size)
                                     PTC1023, PTC1522 };
 
     NetClientState *nc = qemu_get_queue(s->nic);
+
     if (s->phy_reg[MII_BMCR] & MII_BMCR_LOOPBACK) {
+        /* guest->host: 
+         * 发送数据到tap后端。
+         */
+         
+        MY_DEBUG("qemu_receive_packet, guest -> host");
         qemu_receive_packet(nc, buf, size);
     } else {
+
+        /* host -> guest:
+         * Qemu从tap/tun中读取数据，发送给guest的虚拟网卡。
+         * 最终call 到 tap_receive() 
+         */
+        MY_DEBUG("qemu_receive_packet, host -> guest");
         qemu_send_packet(nc, buf, size);
     }
     inc_tx_bcast_or_mcast_count(s, buf);
@@ -621,6 +633,8 @@ xmit_seg(E1000State *s)
     if (tp->sum_needed & E1000_TXD_POPTS_IXSM) {
         putsum(tp->data, tp->size, props->ipcso, props->ipcss, props->ipcse);
     }
+
+    /* 发送数据给后端 */
     if (tp->vlan_needed) {
         memmove(tp->vlan, tp->data, 4);
         memmove(tp->data, tp->data + 4, 8);
@@ -700,6 +714,8 @@ process_tx_desc(E1000State *s, struct e1000_tx_desc *dp)
             }
             tp->size = sz;
             addr += bytes;
+
+            /* xmit_seg() 继续组装IP协议头部，使用 e1000_send_packet() 进行发包 */
             if (sz == msh) {
                 xmit_seg(s);
                 memmove(tp->data, tp->header, tp->tso_props.hdr_len);
@@ -750,6 +766,7 @@ static uint64_t tx_desc_base(E1000State *s)
     return (bah << 32) + bal;
 }
 
+/* 负责发包给后端 - host TAP */
 static void
 start_xmit(E1000State *s)
 {
@@ -771,12 +788,15 @@ start_xmit(E1000State *s)
     while (s->mac_reg[TDH] != s->mac_reg[TDT]) {
         base = tx_desc_base(s) +
                sizeof(struct e1000_tx_desc) * s->mac_reg[TDH];
+
+        /* 从guest os中读取网络包数据 */
         pci_dma_read(d, base, &desc, sizeof(desc));
 
         DBGOUT(TX, "index %d: %p : %x %x\n", s->mac_reg[TDH],
                (void *)(intptr_t)desc.buffer_addr, desc.lower.data,
                desc.upper.data);
 
+        /* 开始拼装网络包 */
         process_tx_desc(s, &desc);
         cause |= txdesc_writeback(s, base, &desc);
 
@@ -1098,11 +1118,20 @@ set_dlen(E1000State *s, int index, uint32_t val)
     s->mac_reg[index] = val & 0xfff80;
 }
 
+/*
+ * guest os --> host 的发包流程开始：
+ * 该函数在guest os中的网卡driver写了寄存器后，触发KVM Exit，检查发现IO操作，则退出VM进入到qemu进程，
+ * 然后，执行该handle。
+ * set_rx_control() 配置接收缓存，负责使用 qemu_flush_queued_packets() 刷新队列中的package。
+ * 最终看一下 set_tctl() 函数。 - [TCTL]  = set_tctl() 
+ */
 static void
 set_tctl(E1000State *s, int index, uint32_t val)
 {
     s->mac_reg[index] = val;
     s->mac_reg[TDT] &= 0xffff;
+
+    /*发包给后端 - 例如：TAP */
     start_xmit(s);
 }
 
@@ -1665,6 +1694,7 @@ static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
                                PCI_DEVICE_GET_CLASS(pci_dev)->device_id,
                                macaddr);
 
+    /* 初始化NIC信息 */
     d->nic = qemu_new_nic(&net_e1000_info, &d->conf,
                           object_get_typename(OBJECT(d)), dev->id,
                           &dev->mem_reentrancy_guard, d);
@@ -1673,6 +1703,10 @@ static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
 
     d->autoneg_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, e1000_autoneg_timer, d);
     d->mit_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, e1000_mit_timer, d);
+
+    /* 在guest OS driver发送packet时，写[RCTL] 寄存器时， set_rx_control() 中被触发。
+     * 该timer负责使用qemu_flush_queued_packets刷新队列中的package。
+     */
     d->flush_queue_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL,
                                         e1000_flush_queue_timer, d);
 }
@@ -1703,7 +1737,9 @@ static void e1000_class_init(ObjectClass *klass, void *data)
     E1000BaseClass *e = E1000_CLASS(klass);
     const E1000Info *info = data;
 
+    /* 初始化 */
     k->realize = pci_e1000_realize;
+
     k->exit = pci_e1000_uninit;
     k->romfile = "efi-e1000.rom";
     k->vendor_id = PCI_VENDOR_ID_INTEL;
@@ -1760,6 +1796,7 @@ static const E1000Info e1000_devices[] = {
     },
 };
 
+/* e1000虚拟网卡注册 */
 static void e1000_register_types(void)
 {
     int i;
@@ -1772,6 +1809,8 @@ static void e1000_register_types(void)
         type_info.name = info->name;
         type_info.parent = TYPE_E1000_BASE;
         type_info.class_data = (void *)info;
+
+        /* 网络设备初始化 */
         type_info.class_init = e1000_class_init;
 
         type_register(&type_info);

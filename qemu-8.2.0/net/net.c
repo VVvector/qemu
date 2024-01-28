@@ -597,6 +597,9 @@ int qemu_set_vnet_be(NetClientState *nc, bool is_be)
 #endif
 }
 
+/*
+ * net_tap_fd_init()下，
+ */
 int qemu_can_receive_packet(NetClientState *nc)
 {
     if (nc->receive_disabled) {
@@ -737,6 +740,9 @@ static ssize_t qemu_send_packet_async_with_flags(NetClientState *sender,
 
     queue = sender->peer->incoming_queue;
 
+    /* 继续发送给qemu 虚拟网卡 */
+    MY_DEBUG("qemu_net_queue_send, host->guest");
+
     return qemu_net_queue_send(queue, sender, flags, buf, size, sent_cb);
 }
 
@@ -809,6 +815,7 @@ static ssize_t nc_sendv_compat(NetClientState *nc, const struct iovec *iov,
     return ret;
 }
 
+/* guest 发送给TAP的 发送函数，例如： tap_receive_iov() */
 static ssize_t qemu_deliver_packet_iov(NetClientState *sender,
                                        unsigned flags,
                                        const struct iovec *iov,
@@ -836,6 +843,7 @@ static ssize_t qemu_deliver_packet_iov(NetClientState *sender,
         owned_reentrancy_guard->engaged_in_io = true;
     }
 
+    /* 后端的发送函数，例如，tap的 tap_receive_iov() */
     if (nc->info->receive_iov && !(flags & QEMU_NET_PACKET_FLAG_RAW)) {
         ret = nc->info->receive_iov(nc, iov, iovcnt);
     } else {
@@ -1096,6 +1104,7 @@ static int (* const net_client_init_fun[NET_CLIENT_DRIVER__MAX])(
 #ifdef CONFIG_SLIRP
         [NET_CLIENT_DRIVER_USER]      = net_init_slirp,
 #endif
+        /* Tap后端类型初始化 */
         [NET_CLIENT_DRIVER_TAP]       = net_init_tap,
         [NET_CLIENT_DRIVER_SOCKET]    = net_init_socket,
         [NET_CLIENT_DRIVER_STREAM]    = net_init_stream,
@@ -1135,6 +1144,7 @@ static int net_client_init1(const Netdev *netdev, bool is_netdev, Error **errp)
     NetClientState *peer = NULL;
     NetClientState *nc;
 
+    /* 根据网卡类型，进行配置 net_client_init_fun[]   */
     if (is_netdev) {
         if (netdev->type == NET_CLIENT_DRIVER_NIC ||
             !net_client_init_fun[netdev->type]) {
@@ -1278,6 +1288,7 @@ static int net_client_init(QemuOpts *opts, bool is_netdev, Error **errp)
         qemu_opts_set_id(opts, id_generate(ID_NET));
     }
 
+    /* 配置网络 */
     if (visit_type_Netdev(v, NULL, &object, errp)) {
         ret = net_client_init1(object, is_netdev, errp);
     }
@@ -1658,6 +1669,7 @@ static int net_param_nic(void *dummy, QemuOpts *opts, Error **errp)
     }
     qemu_macaddr_default_if_unset(&ni->macaddr);
 
+    /* 配置网卡 */
     ret = net_client_init(opts, true, errp);
     if (ret == 0) {
         ni->netdev = qemu_find_netdev(nd_id);
@@ -1693,12 +1705,32 @@ void net_init_clients(void)
 
     netdev_init_modern();
 
+    /* 为了更详细的配置网络NIC的特性，使用-device/-netdev选项.
+     * 板载的NIC不能配置成-netdev/-device
+     * e.g.
+     * -netdev user,id=n1 -device e1000,netdev=n1
+     * -netdev tap,id=n2 -device virtio-net,netdev=n2
+     */
     qemu_opts_foreach(qemu_find_opts("netdev"), net_init_netdev, NULL,
                       &error_fatal);
 
+    /* 最新的网络配置选项
+     * qemu-system-x86_64 -nic model=help
+     * e.g.
+     * nic tap,model=e1000 等价于 -netdev tap,id=n1 -device e1000,netdev=n1
+     */
     qemu_opts_foreach(qemu_find_opts("nic"), net_param_nic, NULL,
                       &error_fatal);
 
+    /* 最老的网络配置选项 - 一般不要用
+     * QEMU最初的guest网络配置方式是-net选项。
+     * 仿真的NIC和host的后端并不是直接相连的。他们通过一个相同的仿真hub连在一起，
+     * 这个组件在以前的QEMU里面叫做vlan。
+     * e.g.
+     * -net nic,model=e1000 -net user 
+     * -net nic,model=virtio -net tap
+     * 
+     */
     qemu_opts_foreach(qemu_find_opts("net"), net_init_client, NULL,
                       &error_fatal);
 }

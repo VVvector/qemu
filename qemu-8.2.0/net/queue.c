@@ -160,6 +160,9 @@ static ssize_t qemu_net_queue_deliver(NetQueue *queue,
         .iov_len = size
     };
 
+    /*
+     * 该callback在 qemu_net_client_setup() 下被初始化为 qemu_deliver_packet_iov()。
+     */
     queue->delivering = 1;
     ret = queue->deliver(sender, flags, &iov, 1, queue->opaque);
     queue->delivering = 0;
