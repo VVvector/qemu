@@ -82,12 +82,15 @@ static void tap_read_poll(TAPState *s, bool enable)
 {
     s->read_poll = enable;
 
-    /* 挂载到qemu的main loop上 */
+    MY_DEBUG("tap read poll");
+
+    /* 挂载到qemu的 iothread的 loop上 */
     tap_update_fd_handler(s);
 }
 
 static void tap_write_poll(TAPState *s, bool enable)
 {
+    MY_DEBUG("tap write poll");
     s->write_poll = enable;
     tap_update_fd_handler(s);
 }
@@ -105,7 +108,7 @@ static ssize_t tap_write_packet(TAPState *s, const struct iovec *iov, int iovcnt
 {
     ssize_t len;
 
-    MY_DEBUG("tap_write_packet, guest -> host");
+    MY_DEBUG("send to backend tap");
 
     /* 写入tap的字符设备 */
     len = RETRY_ON_EINTR(writev(s->fd, iov, iovcnt));
@@ -167,6 +170,8 @@ static ssize_t tap_receive(NetClientState *nc, const uint8_t *buf, size_t size)
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
     struct iovec iov[1];
 
+    MY_DEBUG("tap receive");
+
     if (s->host_vnet_hdr_len && !s->using_vnet_hdr) {
         return tap_receive_raw(nc, buf, size);
     }
@@ -199,6 +204,8 @@ static void tap_send(void *opaque)
     TAPState *s = opaque;
     int size;
     int packets = 0;
+
+    MY_DEBUG("tap send");
 
     while (true) {
         uint8_t *buf = s->buf;
@@ -379,6 +386,7 @@ static void tap_cleanup(NetClientState *nc)
 static void tap_poll(NetClientState *nc, bool enable)
 {
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
+    MY_DEBUG("tap poll");
     tap_read_poll(s, enable);
     tap_write_poll(s, enable);
 }
@@ -450,6 +458,7 @@ static TAPState *net_tap_fd_init(NetClientState *peer,
         tap_fd_set_vnet_hdr_len(s->fd, s->host_vnet_hdr_len);
     }
 
+    MY_DEBUG("add read polling handle");
     /* 挂载polling handle */
     tap_read_poll(s, true);
     s->vhost_net = NULL;
@@ -895,6 +904,7 @@ int net_init_tap(const Netdev *netdev, const char *name,
         }
 
         /* 初始化tap的polling */
+        MY_DEBUG("net init tap one");
         net_init_tap_one(tap, peer, "tap", name, NULL,
                          script, downscript,
                          vhostfdname, vnet_hdr, fd, &err);

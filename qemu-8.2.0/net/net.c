@@ -718,13 +718,15 @@ static ssize_t qemu_send_packet_async_with_flags(NetClientState *sender,
     NetQueue *queue;
     int ret;
 
+    MY_DEBUG("sender:%s --> peer: %s", sender->name, sender->peer->name);
+
 #ifdef DEBUG_NET
     int show_size;
     //printf("qemu_send_packet_async:\n");
     //qemu_hexdump(stdout, "net", buf, size);
     printf("qemu_send_packet_async:\n");
     show_size = size > 64 ? 64: size;
-    qemu_hexdump(stdout, "host-->guest", buf, show_size);
+    qemu_hexdump(stdout, "net", buf, show_size);
 #endif
 
     if (sender->link_down || !sender->peer) {
@@ -746,9 +748,6 @@ static ssize_t qemu_send_packet_async_with_flags(NetClientState *sender,
 
     queue = sender->peer->incoming_queue;
 
-    /* 继续发送给 qemu 虚拟网卡 */
-    MY_DEBUG("backend:%s --> frondend: %s", sender->name, sender->peer->name);
-
     return qemu_net_queue_send(queue, sender, flags, buf, size, sent_cb);
 }
 
@@ -760,13 +759,12 @@ ssize_t qemu_send_packet_async(NetClientState *sender,
                                              buf, size, sent_cb);
 }
 
-/* host -> guest */
 ssize_t qemu_send_packet(NetClientState *nc, const uint8_t *buf, int size)
 {
+    MY_DEBUG("qemu_send_packet");
     return qemu_send_packet_async(nc, buf, size, NULL);
 }
 
-/* guest -> host */
 ssize_t qemu_receive_packet(NetClientState *nc, const uint8_t *buf, int size)
 {
     if (!qemu_can_receive_packet(nc)) {
@@ -777,7 +775,7 @@ ssize_t qemu_receive_packet(NetClientState *nc, const uint8_t *buf, int size)
     int show_size;
     printf("qemu_receive_packet:\n");
     show_size = size > 64 ? 64: size;
-    qemu_hexdump(stdout, "guest-->host", buf, show_size);
+    qemu_hexdump(stdout, "net", buf, show_size);
 #endif
 
     return qemu_net_queue_receive(nc->incoming_queue, buf, size);
@@ -830,9 +828,6 @@ static ssize_t nc_sendv_compat(NetClientState *nc, const struct iovec *iov,
     return ret;
 }
 
-/* guest -> host:
- * guest网卡前端发送给TAP后端，例如： TAP的接收函数 tap_receive_iov()
- */
 static ssize_t qemu_deliver_packet_iov(NetClientState *sender,
                                        unsigned flags,
                                        const struct iovec *iov,
@@ -859,8 +854,10 @@ static ssize_t qemu_deliver_packet_iov(NetClientState *sender,
         owned_reentrancy_guard->engaged_in_io = true;
     }
 
-    /* 后端的接收函数，例如，tap的 tap_receive_iov() */
-    MY_DEBUG("frondend: %s --> backend: %s", sender->name, nc->name);
+    /* 调用peer对端的接收函数。例如：
+     * host(tap) -> guest(e1000): 即调用 e1000_receive_iov()
+     * host(tap) <- guest(e1000)：即调用 tap_receive_iov() */
+    MY_DEBUG("sender: %s --> peer: %s", sender->name, nc->name);
     if (nc->info->receive_iov && !(flags & QEMU_NET_PACKET_FLAG_RAW)) {
         ret = nc->info->receive_iov(nc, iov, iovcnt);
     } else {

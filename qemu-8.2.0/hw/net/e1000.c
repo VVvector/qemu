@@ -563,19 +563,12 @@ e1000_send_packet(E1000State *s, const uint8_t *buf, int size)
     NetClientState *nc = qemu_get_queue(s->nic);
 
     if (s->phy_reg[MII_BMCR] & MII_BMCR_LOOPBACK) {
-        /* guest->host: 
-         * 发送数据到tap后端。
-         */
-         
-        MY_DEBUG("qemu_receive_packet, guest -> host");
+        /* loopback模式: guest -> e1000 -> guest */
         qemu_receive_packet(nc, buf, size);
     } else {
-
-        /* host -> guest:
-         * Qemu从tap/tun中读取数据，发送给guest的虚拟网卡。
-         * 最终call 到 tap_receive() 
+        /* guest->host:
+         * 发送数据到host tap后端。
          */
-        MY_DEBUG("qemu_receive_packet, host -> guest");
         qemu_send_packet(nc, buf, size);
     }
     inc_tx_bcast_or_mcast_count(s, buf);
@@ -634,6 +627,7 @@ xmit_seg(E1000State *s)
         putsum(tp->data, tp->size, props->ipcso, props->ipcss, props->ipcse);
     }
 
+    MY_DEBUG("xmit seg");
     /* 发送数据给后端 */
     if (tp->vlan_needed) {
         memmove(tp->vlan, tp->data, 4);
@@ -661,6 +655,8 @@ process_tx_desc(E1000State *s, struct e1000_tx_desc *dp)
     uint64_t addr;
     struct e1000_context_desc *xp = (struct e1000_context_desc *)dp;
     struct e1000_tx *tp = &s->tx;
+
+    MY_DEBUG("process tx desc");
 
     s->mit_ide |= (txd_lower & E1000_TXD_CMD_IDE);
     if (dtype == E1000_TXD_CMD_DEXT) {    /* context descriptor */
@@ -774,6 +770,8 @@ start_xmit(E1000State *s)
     dma_addr_t base;
     struct e1000_tx_desc desc;
     uint32_t tdh_start = s->mac_reg[TDH], cause = E1000_ICS_TXQE;
+
+    MY_DEBUG("start xmit");
 
     if (!(s->mac_reg[TCTL] & E1000_TCTL_EN)) {
         DBGOUT(TX, "tx disabled\n");
@@ -911,6 +909,9 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
     size_t total_size;
     eth_pkt_types_e pkt_type;
 
+    /* host -> guest */
+    MY_DEBUG("e1000 receive iov");
+
     if (!e1000x_hw_rx_enabled(s->mac_reg)) {
         return -1;
     }
@@ -1026,6 +1027,7 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
         s->rxbuf_min_shift)
         n |= E1000_ICS_RXDMT0;
 
+    MY_DEBUG("issue RX interrupt to guest os");
     set_ics(s, 0, n);
 
     return size;
@@ -1038,6 +1040,9 @@ e1000_receive(NetClientState *nc, const uint8_t *buf, size_t size)
         .iov_base = (uint8_t *)buf,
         .iov_len = size
     };
+
+    /* host -> guest */
+    MY_DEBUG("e1000 receive data");
 
     return e1000_receive_iov(nc, &iov, 1);
 }
