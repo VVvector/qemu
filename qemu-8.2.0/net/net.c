@@ -279,6 +279,7 @@ static void qemu_net_client_setup(NetClientState *nc,
     }
     QTAILQ_INSERT_TAIL(&net_clients, nc, next);
 
+    MY_DEBUG("sent client incoming-queue - qemu_deliver_packet_iov");
     nc->incoming_queue = qemu_new_net_queue(qemu_deliver_packet_iov, nc);
     nc->destructor = destructor;
     nc->is_datapath = is_datapath;
@@ -291,6 +292,8 @@ NetClientState *qemu_new_net_client(NetClientInfo *info,
                                     const char *name)
 {
     NetClientState *nc;
+
+    MY_DEBUG("qemu new net client");
 
     assert(info->size >= sizeof(NetClientState));
 
