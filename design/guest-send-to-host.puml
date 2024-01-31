@@ -1,0 +1,69 @@
+@startuml
+
+box guest os
+participant e1000_driver as A
+end box
+
+box qemu
+participant e1000_device as B
+participant qemu_net as C
+participant qemu_queue as D
+participant qemu_tap as E
+end box
+
+box host os
+participant tap_net_device as F
+end box
+
+A->B: write register, VM Exit.
+activate B
+    B->B:start_xmit
+    activate B
+        B->B: process_tx_desc
+        activate B
+            B->B: xmit_seg
+            activate B
+                B->B: e1000_send_packet
+                activate B
+                    B->C: qemu_send_packet
+                deactivate B
+            deactivate B
+        deactivate B
+    deactivate B
+deactivate B
+
+activate C
+    C->C: qemu_send_packet_async
+    activate C
+        C->C: qemu_send_packet_async_with_flags
+        activate C
+            C->D: qemu_net_queue_send
+        deactivate C
+    deactivate C
+deactivate C
+
+activate D
+    D->D: qemu_net_queue_deliver
+    activate D
+        D->C: qemu_deliver_packet_iov
+        note right
+        queue->deliver callback is set qemu_deliver_packet_iov
+        to in qemu_net_client_setup()
+        end note
+    deactivate D
+deactivate D
+
+activate C
+    C->E: tap_receive_iov
+    note right
+    nc->info->receive_iov callback is set to
+    tap_receive_iov in net_tap_fd_init;
+    in net_tap_info
+    end note
+deactivate C
+
+activate E
+E->F: tap_write_packet
+deactivate E
+
+@enduml
