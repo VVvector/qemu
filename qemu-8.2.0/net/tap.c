@@ -439,6 +439,7 @@ static TAPState *net_tap_fd_init(NetClientState *peer,
     NetClientState *nc;
     TAPState *s;
 
+    MY_DEBUG("TAP: create net client");
     nc = qemu_new_net_client(&net_tap_info, peer, model, name);
 
     s = DO_UPCAST(TAPState, nc, nc);
@@ -459,6 +460,7 @@ static TAPState *net_tap_fd_init(NetClientState *peer,
     }
 
     MY_DEBUG("add read polling handle");
+
     /* 挂载polling handle */
     tap_read_poll(s, true);
     s->vhost_net = NULL;
@@ -731,6 +733,8 @@ static void net_init_tap_one(const NetdevTapOptions *tap, NetClientState *peer,
     Error *err = NULL;
 
     /* 初始化tap handle */
+    MY_DEBUG("net init tap one");
+
     TAPState *s = net_tap_fd_init(peer, model, name, fd, vnet_hdr);
     int vhostfd;
 
@@ -848,6 +852,7 @@ static int get_fds(char *str, char *fds[], int max)
     return i;
 }
 
+/* 如果命令行，指定了TAP后端，就会从这里开始初始化TAP。 */
 int net_init_tap(const Netdev *netdev, const char *name,
                  NetClientState *peer, Error **errp)
 {
@@ -860,6 +865,8 @@ int net_init_tap(const Netdev *netdev, const char *name,
     const char *vhostfdname;
     char ifname[128];
     int ret = 0;
+
+    MY_DEBUG("net init tap");
 
     assert(netdev->type == NET_CLIENT_DRIVER_TAP);
     tap = &netdev->u.tap;
@@ -904,7 +911,6 @@ int net_init_tap(const Netdev *netdev, const char *name,
         }
 
         /* 初始化tap的polling */
-        MY_DEBUG("net init tap one");
         net_init_tap_one(tap, peer, "tap", name, NULL,
                          script, downscript,
                          vhostfdname, vnet_hdr, fd, &err);

@@ -266,20 +266,34 @@ static void qemu_net_client_setup(NetClientState *nc,
 {
     nc->info = info;
     nc->model = g_strdup(model);
+
     if (name) {
         nc->name = g_strdup(name);
     } else {
         nc->name = assign_name(nc, model);
     }
 
+    MY_DEBUG("client setup: moduel:%s, name:%s, nc->name:%s", model, name, nc->name);
+
+    /* 两个端点互相引用，例如，前端和后端互指。
+     * 例如：
+     * 当后端tap NetClientState 先创建，它的peer还没有被创建，这里就跳过，
+     * 等到它的peer创建好了，就可以在peer创建时设置对方为peer。
+     */
     if (peer) {
+        MY_DEBUG("peer:%s", peer->name);
+
         assert(!peer->peer);
         nc->peer = peer;
         peer->peer = nc;
+    } else {
+        MY_DEBUG("peer is NULL");
     }
+
+    /* 注册到net_clients全局链表中。 */
     QTAILQ_INSERT_TAIL(&net_clients, nc, next);
 
-    MY_DEBUG("sent client incoming-queue - qemu_deliver_packet_iov");
+    MY_DEBUG("nc->incoming_queue - qemu_deliver_packet_iov");
     nc->incoming_queue = qemu_new_net_queue(qemu_deliver_packet_iov, nc);
     nc->destructor = destructor;
     nc->is_datapath = is_datapath;
@@ -331,6 +345,10 @@ NICState *qemu_new_nic(NetClientInfo *info,
     NICState *nic;
     int i, queues = MAX(1, conf->peers.queues);
 
+    /* 确定对端peer的queue的个数，在初始化时，已经决定。*/
+    MY_DEBUG("model:%s, name:%s，peers.queues:%d",model, name, conf->peers.queues);
+
+
     assert(info->type == NET_CLIENT_DRIVER_NIC);
     assert(info->size >= sizeof(NICState));
 
@@ -340,7 +358,12 @@ NICState *qemu_new_nic(NetClientInfo *info,
     nic->reentrancy_guard = reentrancy_guard,
     nic->opaque = opaque;
 
+    /* 即peer有多少个queue，就创建多少个NetClientState。
+     * 因为 对应tx来说，要看对端peer有几个RXQ。
+     * 这里看起来，是一一对应的。
+     */
     for (i = 0; i < queues; i++) {
+        MY_DEBUG("set up queue[%d] client", i);
         qemu_net_client_setup(&nic->ncs[i], info, peers[i], model, name,
                               NULL, true);
         nic->ncs[i].queue_index = i;

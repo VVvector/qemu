@@ -560,6 +560,7 @@ e1000_send_packet(E1000State *s, const uint8_t *buf, int size)
     static const int PTCregs[6] = { PTC64, PTC127, PTC255, PTC511,
                                     PTC1023, PTC1522 };
 
+    /* 获取对端peer的信息，例如，后端的TAP */
     NetClientState *nc = qemu_get_queue(s->nic);
 
     if (s->phy_reg[MII_BMCR] & MII_BMCR_LOOPBACK) {
@@ -1700,6 +1701,12 @@ static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
                                macaddr);
 
     /* 初始化NIC信息 */
+    MY_DEBUG("new e1000 nic, get e1000 NICState structure");
+
+    /*  -device e1000,mac=00:16:3e:01:01:01,netdev=net0 
+     * 命令中的mac, netdev都保存在conf中。
+     */
+
     d->nic = qemu_new_nic(&net_e1000_info, &d->conf,
                           object_get_typename(OBJECT(d)), dev->id,
                           &dev->mem_reentrancy_guard, d);
@@ -1710,7 +1717,7 @@ static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
     d->mit_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, e1000_mit_timer, d);
 
     /* 在guest OS driver发送packet时，写[RCTL] 寄存器时， set_rx_control() 中被触发。
-     * 该timer负责使用qemu_flush_queued_packets刷新队列中的package。
+     * 该timer负责使用 qemu_flush_queued_packets 刷新队列中的package。
      */
     d->flush_queue_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL,
                                         e1000_flush_queue_timer, d);

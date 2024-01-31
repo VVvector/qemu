@@ -1,0 +1,88 @@
+@startuml
+
+class E1000State_st {
+    PCIDevice parent_obj;
+    --
+    NICState *nic;
+    NICConf conf;
+    ...
+}
+
+E1000State_st::nic --> NICState
+class NICState {
+    NetClientState *ncs;
+    NICConf *conf;
+    MemReentrancyGuard *reentrancy_guard;
+    void *opaque;
+    bool peer_deleted;
+}
+
+NICState::opaque --> E1000State_st
+NICState::conf --> NICConf
+NICState::ncs --> NetClientState
+class NetClientState {
+    NetClientInfo *info;
+    int link_down;
+    QTAILQ_ENTRY ... next;
+    NetClientState *peer;
+    NetQueue *incoming_queue;
+    char *model;
+    char *name;
+    char info_str[256];
+    unsigned receive_disabled : 1;
+    NetClientDestructor *destructor;
+    unsigned int queue_index;
+    unsigned rxfilter_notify_enabled:1;
+    int vring_enable;
+    int vnet_hdr_len;
+    bool is_netdev;
+    bool do_not_pad;
+    bool is_datapath;
+    QTAILQ_HEAD ... filters;
+}
+
+NetClientState::info --> NetClientInfo
+class NetClientInfo {
+    NetClientDriver type;
+    size_t size;
+    NetReceive *receive;
+    NetReceive *receive_raw;
+    NetReceiveIOV *receive_iov;
+    NetCanReceive *can_receive;
+    NetStart *start;
+    NetLoad *load;
+    NetStop *stop;
+    NetCleanup *cleanup;
+    LinkStatusChanged *link_status_changed;
+    QueryRxFilter *query_rx_filter;
+    NetPoll *poll;
+    HasUfo *has_ufo;
+    HasUso *has_uso;
+    HasVnetHdr *has_vnet_hdr;
+    HasVnetHdrLen *has_vnet_hdr_len;
+    GetUsingVnetHdr *get_using_vnet_hdr;
+    UsingVnetHdr *using_vnet_hdr;
+    SetOffload *set_offload;
+    GetVnetHdrLen *get_vnet_hdr_len;
+    SetVnetHdrLen *set_vnet_hdr_len;
+    SetVnetLE *set_vnet_le;
+    SetVnetBE *set_vnet_be;
+    NetAnnounce *announce;
+    SetSteeringEBPF *set_steering_ebpf;
+    NetCheckPeerType *check_peer_type;
+}
+
+E1000State_st::conf --> NICConf
+class NICConf {
+    MACAddr macaddr;
+    NICPeers peers;
+    int32_t bootindex;
+}
+
+NICConf::peers --> NICPeers
+class NICPeers {
+    NetClientState *ncs[MAX_QUEUE_NUM];
+    int32_t queues;
+}
+
+@enduml
