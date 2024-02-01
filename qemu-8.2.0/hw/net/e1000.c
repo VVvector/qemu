@@ -44,7 +44,7 @@
 #include "trace.h"
 #include "qom/object.h"
 
-/* #define E1000_DEBUG */
+#define E1000_DEBUG
 
 #ifdef E1000_DEBUG
 enum {
@@ -1669,12 +1669,31 @@ static void e1000_write_config(PCIDevice *pci_dev, uint32_t address,
     }
 }
 
+void show_conf(NICConf *conf)
+{
+    int i;
+
+    DBGOUT(GENERAL, "conf->peers.queues:%d\n", conf->peers.queues);
+
+    for (i = 0; i < conf->peers.queues; i++)
+        DBGOUT(GENERAL, "peers->ncs[i] name: %s\n", conf->peers.ncs[i]->name);
+}
+
 static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
 {
     DeviceState *dev = DEVICE(pci_dev);
     E1000State *d = E1000(pci_dev);
     uint8_t *pci_conf;
     uint8_t *macaddr;
+
+
+    MY_DEBUG("pci e1000 realize");
+
+    /* 这里conf就已经被初始化了。
+     *
+     * 说明在 e1000_instance_init() 和 pci_e1000_realize()之间被初始化。
+     */
+    show_conf(&d->conf);
 
     pci_dev->config_write = e1000_write_config;
 
@@ -1701,10 +1720,9 @@ static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
                                macaddr);
 
     /* 初始化NIC信息 */
-    MY_DEBUG("new e1000 nic, get e1000 NICState structure");
-
     /*  -device e1000,mac=00:16:3e:01:01:01,netdev=net0 
      * 命令中的mac, netdev都保存在conf中。
+     * conf在哪里被初始化的？？？
      */
 
     d->nic = qemu_new_nic(&net_e1000_info, &d->conf,
@@ -1724,7 +1742,9 @@ static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
 }
 
 static Property e1000_properties[] = {
+    /* 获取qemu启动命令行的参数， 例如，mac和netdev参数。*/
     DEFINE_NIC_PROPERTIES(E1000State, conf),
+
     DEFINE_PROP_BIT("extra_mac_registers", E1000State,
                     compat_flags, E1000_FLAG_MAC_BIT, true),
     DEFINE_PROP_BIT("migrate_tso_props", E1000State,
@@ -1749,6 +1769,8 @@ static void e1000_class_init(ObjectClass *klass, void *data)
     E1000BaseClass *e = E1000_CLASS(klass);
     const E1000Info *info = data;
 
+    DBGOUT(GENERAL, "e1000 class init, name:%s\n", info->name);
+
     /* 初始化 */
     k->realize = pci_e1000_realize;
 
@@ -1763,15 +1785,25 @@ static void e1000_class_init(ObjectClass *klass, void *data)
     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);
     dc->desc = "Intel Gigabit Ethernet";
     dc->vmsd = &vmstate_e1000;
+
+    /* 这里注册了properties，会执行相关的初始化，例如 DEFINE_NIC_PROPERTIES 来初始化conf。*/
+    DBGOUT(GENERAL, "set device properties\n");
     device_class_set_props(dc, e1000_properties);
 }
 
 static void e1000_instance_init(Object *obj)
 {
     E1000State *n = E1000(obj);
+
+    /* 这里conf还没有被初始化 */
+    DBGOUT(GENERAL, "e1000 instance init\n");
+    show_conf(&n->conf);
     device_add_bootindex_property(obj, &n->conf.bootindex,
                                   "bootindex", "/ethernet-phy@0",
                                   DEVICE(n));
+
+    /* 也没有被初始化 */
+    show_conf(&n->conf);
 }
 
 static const TypeInfo e1000_base_info = {
@@ -1813,6 +1845,8 @@ static void e1000_register_types(void)
 {
     int i;
 
+    DBGOUT(GENERAL, "e1000 register types\n");
+
     type_register_static(&e1000_base_info);
     for (i = 0; i < ARRAY_SIZE(e1000_devices); i++) {
         const E1000Info *info = &e1000_devices[i];
@@ -1822,7 +1856,7 @@ static void e1000_register_types(void)
         type_info.parent = TYPE_E1000_BASE;
         type_info.class_data = (void *)info;
 
-        /* 网络设备初始化 */
+        /* 网络设备class初始化 */
         type_info.class_init = e1000_class_init;
 
         type_register(&type_info);

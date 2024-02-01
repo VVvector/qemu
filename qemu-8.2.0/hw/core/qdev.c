@@ -163,6 +163,8 @@ DeviceState *qdev_new(const char *name)
         error_report("unknown type '%s'", name);
         abort();
     }
+
+    //fprintf(stderr, "create object\n");
     return DEVICE(object_new(name));
 }
 

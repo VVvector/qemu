@@ -391,6 +391,8 @@ static void get_netdev(Object *obj, Visitor *v, const char *name,
     NICPeers *peers_ptr = object_field_prop_ptr(obj, prop);
     char *p = g_strdup(peers_ptr->ncs[0] ? peers_ptr->ncs[0]->name : "");
 
+    fprintf(stderr, "get netdev\n");
+
     visit_type_str(v, name, &p, errp);
     g_free(p);
 }
@@ -405,10 +407,16 @@ static void set_netdev(Object *obj, Visitor *v, const char *name,
     int queues, err = 0, i = 0;
     char *str;
 
+    fprintf(stderr, "set netdev\n");
+
     if (!visit_type_str(v, name, &str, errp)) {
         return;
     }
 
+    /* 查找peer信息，从net_clients中查找。根据str。
+     * 这里的str，即device中netdev的字符串值。
+     * 后端会根据id和queue的个数来创建net_client，并且挂载net_clients全局链表中。
+     */
     queues = qemu_find_net_clients_except(str, peers,
                                           NET_CLIENT_DRIVER_NIC,
                                           MAX_QUEUE_NUM);
@@ -423,6 +431,7 @@ static void set_netdev(Object *obj, Visitor *v, const char *name,
         goto out;
     }
 
+    /* 根据peer的信息，初始化网卡conf的信息。 */
     for (i = 0; i < queues; i++) {
         if (peers[i]->peer) {
             err = -EEXIST;

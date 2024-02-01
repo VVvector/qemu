@@ -678,6 +678,7 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
         return NULL;
     }
 
+    //fprintf(stderr, "create device\n");
     /* create device */
     dev = qdev_new(driver);
 
@@ -716,6 +717,7 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
         goto err_del_dev;
     }
 
+    //fprintf(stderr, "realize device\n");
     if (!qdev_realize(dev, bus, errp)) {
         goto err_del_dev;
     }
@@ -734,6 +736,8 @@ DeviceState *qdev_device_add(QemuOpts *opts, Error **errp)
 {
     QDict *qdict = qemu_opts_to_qdict(opts, NULL);
     DeviceState *ret;
+
+    //fprintf(stderr, "qdev device add\n");
 
     ret = qdev_device_add_from_qdict(qdict, false, errp);
     if (ret) {

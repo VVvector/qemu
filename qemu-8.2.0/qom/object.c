@@ -388,6 +388,7 @@ static void object_init_with_type(Object *obj, TypeImpl *ti)
         object_init_with_type(obj, type_get_parent(ti));
     }
 
+    //fprintf(stderr, "init instance\n");
     if (ti->instance_init) {
         ti->instance_init(obj);
     }
@@ -750,6 +751,8 @@ static Object *object_new_with_type(Type type)
         obj = qemu_memalign(align, size);
         obj_free = qemu_vfree;
     }
+
+    //fprintf(stderr, "init object\n");
 
     object_initialize_with_type(obj, size, type);
     obj->free = obj_free;

@@ -352,6 +352,7 @@ NICState *qemu_new_nic(NetClientInfo *info,
     assert(info->type == NET_CLIENT_DRIVER_NIC);
     assert(info->size >= sizeof(NICState));
 
+    /* 表示给当前网卡申请的TX queue个数，一个queue对应一个netclientstate，且与peer的queue对应。 */
     nic = g_malloc0(info->size + sizeof(NetClientState) * queues);
     nic->ncs = (void *)nic + info->size;
     nic->conf = conf;
@@ -963,6 +964,10 @@ int qemu_find_net_clients_except(const char *id, NetClientState **ncs,
 {
     NetClientState *nc;
     int ret = 0;
+
+    fprintf(stderr, "qemu_find_net_clients_except, name:%s\n", id);
+
+    /* 一个后端的一个queue用一个net_clients表示。例如，TAP后端，就只注册了一个queue，即一个net_clients. */
 
     QTAILQ_FOREACH(nc, &net_clients, next) {
         if (nc->info->type == type) {
