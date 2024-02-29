@@ -105,6 +105,11 @@ void module_call_init(module_init_type type)
 
     l = find_type(type);
 
+    /*
+     * 相关module的初始化，例如，class, type等初始化。
+     * Qemu中设备模拟通过 type_init 先编译进系统，在 module_call_init 时进行回调，
+     * 比如，xxx_register_types，在这些函数中都是根据TypeInfo类型信息来创建具体的实现信息；
+     */
     QTAILQ_FOREACH(e, l, node) {
         e->init();
     }

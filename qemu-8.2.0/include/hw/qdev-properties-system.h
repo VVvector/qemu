@@ -30,8 +30,11 @@ extern const PropertyInfo qdev_prop_cpus390entitlement;
 
 #define DEFINE_PROP_CHR(_n, _s, _f)             \
     DEFINE_PROP(_n, _s, _f, qdev_prop_chr, CharBackend)
+
+/* 注册网络设备的属性获取方法 */
 #define DEFINE_PROP_NETDEV(_n, _s, _f)             \
     DEFINE_PROP(_n, _s, _f, qdev_prop_netdev, NICPeers)
+
 #define DEFINE_PROP_DRIVE(_n, _s, _f) \
     DEFINE_PROP(_n, _s, _f, qdev_prop_drive, BlockBackend *)
 #define DEFINE_PROP_DRIVE_IOTHREAD(_n, _s, _f) \

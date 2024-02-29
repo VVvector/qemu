@@ -312,6 +312,8 @@ NetClientState *qemu_new_net_client(NetClientInfo *info,
     assert(info->size >= sizeof(NetClientState));
 
     nc = g_malloc0(info->size);
+
+    /* 设置NetClientState */
     qemu_net_client_setup(nc, info, peer, model, name,
                           qemu_net_client_destructor, true);
 
@@ -967,8 +969,11 @@ int qemu_find_net_clients_except(const char *id, NetClientState **ncs,
 
     fprintf(stderr, "qemu_find_net_clients_except, name:%s\n", id);
 
-    /* 一个后端的一个queue用一个net_clients表示。例如，TAP后端，就只注册了一个queue，即一个net_clients. */
-
+    /* 
+     *遍历整个后端链 - net_clients。
+     * 一个后端的一个queue用一个net_clients表示。例如，TAP后端，就只注册了一个net_clients，
+     * 即一个queue。
+     */
     QTAILQ_FOREACH(nc, &net_clients, next) {
         if (nc->info->type == type) {
             continue;
@@ -1189,7 +1194,9 @@ static int net_client_init1(const Netdev *netdev, bool is_netdev, Error **errp)
     NetClientState *peer = NULL;
     NetClientState *nc;
 
-    /* 根据网卡类型，进行配置 net_client_init_fun[]   */
+    /* 根据网卡类型，进行配置 net_client_init_fun[] 
+     * 例如： net_init_tap()
+     */
     if (is_netdev) {
         if (netdev->type == NET_CLIENT_DRIVER_NIC ||
             !net_client_init_fun[netdev->type]) {
@@ -1297,6 +1304,8 @@ static int net_client_init(QemuOpts *opts, bool is_netdev, Error **errp)
     int ret = -1;
     Visitor *v = opts_visitor_new(opts);
 
+    MY_DEBUG("net client init");
+
     /* Parse convenience option format ipv6-net=fec0::0[/64] */
     const char *ip6_net = qemu_opt_get(opts, "ipv6-net");
 
@@ -1333,8 +1342,8 @@ static int net_client_init(QemuOpts *opts, bool is_netdev, Error **errp)
         qemu_opts_set_id(opts, id_generate(ID_NET));
     }
 
-    /* 配置网络 */
     if (visit_type_Netdev(v, NULL, &object, errp)) {
+        /* 配置网络后端client */
         ret = net_client_init1(object, is_netdev, errp);
     }
 
@@ -1741,6 +1750,7 @@ static void netdev_init_modern(void)
     }
 }
 
+
 void net_init_clients(void)
 {
     net_change_state_entry =
@@ -1755,7 +1765,10 @@ void net_init_clients(void)
      * e.g.
      * -netdev user,id=n1 -device e1000,netdev=n1
      * -netdev tap,id=n2 -device virtio-net,netdev=n2
+     *
+     * 如果是Tap类型的网络后端，即会调用 net_init_tap()
      */
+    MY_DEBUG("handle netdev cmd");
     qemu_opts_foreach(qemu_find_opts("netdev"), net_init_netdev, NULL,
                       &error_fatal);
 
@@ -1764,6 +1777,7 @@ void net_init_clients(void)
      * e.g.
      * nic tap,model=e1000 等价于 -netdev tap,id=n1 -device e1000,netdev=n1
      */
+    MY_DEBUG("handle nic cmd");
     qemu_opts_foreach(qemu_find_opts("nic"), net_param_nic, NULL,
                       &error_fatal);
 
@@ -1776,6 +1790,7 @@ void net_init_clients(void)
      * -net nic,model=virtio -net tap
      * 
      */
+    MY_DEBUG("handle net cmd");
     qemu_opts_foreach(qemu_find_opts("net"), net_init_client, NULL,
                       &error_fatal);
 }

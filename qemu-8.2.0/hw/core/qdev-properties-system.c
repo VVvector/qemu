@@ -397,6 +397,7 @@ static void get_netdev(Object *obj, Visitor *v, const char *name,
     g_free(p);
 }
 
+/* 配置网卡后端设备的信息 */
 static void set_netdev(Object *obj, Visitor *v, const char *name,
                        void *opaque, Error **errp)
 {

@@ -78,6 +78,7 @@ static void tap_update_fd_handler(TAPState *s)
                         s);
 }
 
+/* 用于将fd添加到Qemu的AioContext中，用于异步响应，当有数据来临时，捕获事件并进行处理。 */
 static void tap_read_poll(TAPState *s, bool enable)
 {
     s->read_poll = enable;
@@ -430,6 +431,9 @@ static NetClientInfo net_tap_info = {
     .set_steering_ebpf = tap_set_steering_ebpf,
 };
 
+/* 根据 net_tap_info 结构，创建 NetClientState，并进行相关设置，
+ * 这里边 net_tap_info 结构体中的接收函数指针用于实际的数据传输处理。
+ */
 static TAPState *net_tap_fd_init(NetClientState *peer,
                                  const char *model,
                                  const char *name,
@@ -439,7 +443,8 @@ static TAPState *net_tap_fd_init(NetClientState *peer,
     NetClientState *nc;
     TAPState *s;
 
-    MY_DEBUG("TAP: create net client");
+    /* 创建一个新的net client */
+    MY_DEBUG("create a new Tap net client");
     nc = qemu_new_net_client(&net_tap_info, peer, model, name);
 
     s = DO_UPCAST(TAPState, nc, nc);
@@ -461,7 +466,7 @@ static TAPState *net_tap_fd_init(NetClientState *peer,
 
     MY_DEBUG("add read polling handle");
 
-    /* 挂载polling handle */
+    /* 注册异步响应机制，将tap的fd添加到AioContext中*/
     tap_read_poll(s, true);
     s->vhost_net = NULL;
 
@@ -687,6 +692,7 @@ int net_init_bridge(const Netdev *netdev, const char *name,
     return 0;
 }
 
+/* 与Host的tun驱动进行交互，其实质就是打开该设备文件，并进行相应的配置等。 */
 static int net_tap_init(const NetdevTapOptions *tap, int *vnet_hdr,
                         const char *setup_script, char *ifname,
                         size_t ifname_sz, int mq_required, Error **errp)
@@ -702,6 +708,7 @@ static int net_tap_init(const NetdevTapOptions *tap, int *vnet_hdr,
         vnet_hdr_required = 0;
     }
 
+    /* open tap设备 */
     fd = RETRY_ON_EINTR(tap_open(ifname, ifname_sz, vnet_hdr, vnet_hdr_required,
                       mq_required, errp));
     if (fd < 0) {
@@ -738,6 +745,7 @@ static void net_init_tap_one(const NetdevTapOptions *tap, NetClientState *peer,
     TAPState *s = net_tap_fd_init(peer, model, name, fd, vnet_hdr);
     int vhostfd;
 
+    /* 设置tap设备发包buffer的大小 */
     tap_set_sndbuf(s->fd, tap, &err);
     if (err) {
         error_propagate(errp, err);
@@ -852,7 +860,7 @@ static int get_fds(char *str, char *fds[], int max)
     return i;
 }
 
-/* 如果命令行，指定了TAP后端，就会从这里开始初始化TAP。 */
+/* Tap后端的初始化 */
 int net_init_tap(const Netdev *netdev, const char *name,
                  NetClientState *peer, Error **errp)
 {
@@ -1051,6 +1059,7 @@ free_fail:
         }
 
         for (i = 0; i < queues; i++) {
+            /* 打开并配置Tap设备，与host的tun/tap驱动交互。 */
             fd = net_tap_init(tap, &vnet_hdr, i >= 1 ? "no" : script,
                               ifname, sizeof ifname, queues > 1, errp);
             if (fd == -1) {

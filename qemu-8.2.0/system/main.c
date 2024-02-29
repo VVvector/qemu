@@ -34,6 +34,7 @@ int qemu_default_main(void)
 {
     int status;
 
+    fprintf(stdout, "qemu main loop\n");
     status = qemu_main_loop();
     qemu_cleanup(status);
 
@@ -44,6 +45,10 @@ int (*qemu_main)(void) = qemu_default_main;
 
 int main(int argc, char **argv)
 {
+    /* qemu的入口函数 */
+    fprintf(stdout, "qemu init\n");
     qemu_init(argc, argv);
+
+    /* qemu main loop */
     return qemu_main();
 }

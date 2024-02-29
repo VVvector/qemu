@@ -1,0 +1,127 @@
+@startuml
+
+participant main.c as A
+participant vl.c as B
+participant module.c as C
+participant physmem.c as E
+participant net.c as F
+participant "qdev-monitor.c" as G
+participant qdev.c as H
+participant "accel-system.c" as I
+participant "kvm-all.c" as J
+
+
+A -> B: qemu_init
+
+==1==
+
+B -> C: module_call_init
+note over B
+    module的初始化
+end note
+note over C
+    module的初始化，例如，class, type等初始化。
+    Qemu中设备模拟通过 type_init 先编译进系统，
+    在 module_call_init 时进行回调，
+    比如，xxx_register_types，在这些函数中都是根据
+    TypeInfo类型信息来创建具体的实现信息；
+end note
+C --> B: return
+
+==2==
+B->B: qemu_create_machine
+note over B
+    虚拟机machine相关初始化
+end note
+activate B
+B->E: cpu_exec_init_all
+note over E
+    io memory, memory map的初始化
+end note
+deactivate B
+E --> B: return
+
+==3==
+B -> B: configure_accelerators
+note over B
+    虚拟化加速
+end note
+activate B
+B -> B: do_configure_accelerator
+activate B
+B -> I: accel_init_machine
+I -> J: kvm_init
+note over J
+    初始化KVM
+end note
+J --> I: return
+I --> B: return
+deactivate B
+deactivate B
+
+==4==
+B -> B: qemu_create_late_backends
+note over B
+    网络后端初始化，
+    例如，启动命令行中 -netdev等指定的设备
+end note
+activate B
+B -> F: net_init_clients
+note over F
+    -netdev, -nic, -net参数的处理
+    例如，Tap类型后端，会调用 net_init_tap()
+end note
+F --> B: return
+deactivate B
+
+==5==
+B -> B: qmp_x_exit_preconfig
+note over B
+    设备初始化
+    在启动命令行中 -device后面的设备。
+    例如, Virtio-Net, e1000等。
+end note
+activate B
+    B->B: qemu_init_board
+    note over B
+        machine初始化
+    end note
+    B->B: qemu_create_cli_devices
+    note over B
+        初始化所有devices，即-device参数
+    end note
+    activate B
+        B->B: device_init_func
+        activate B
+            B->G: qdev_device_add
+        deactivate B
+    deactivate B
+deactivate B
+
+G->G: qdev_get_device_class
+note over G
+    1. class 初始化
+end note
+
+G->H: qdev_new
+note over H
+    2. device实例化
+end note
+H --> G: return
+
+G -> H: qdev_realize
+note over H
+    3. device实例的初始化
+    以nic为例，这里会设置device的property。
+end note
+H --> G: return
+G --> B: return
+B --> A: return
+
+==6==
+A -> A: qemu_default_main
+note over A
+    qemu main loop
+    监听和处理各种事件，例如，io的事件。
+end note
+@enduml

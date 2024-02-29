@@ -388,6 +388,7 @@ static void object_init_with_type(Object *obj, TypeImpl *ti)
         object_init_with_type(obj, type_get_parent(ti));
     }
 
+    /* 调用某个对象的实例化函数 */
     //fprintf(stderr, "init instance\n");
     if (ti->instance_init) {
         ti->instance_init(obj);
@@ -532,6 +533,8 @@ static void object_initialize_with_type(Object *obj, size_t size, TypeImpl *type
     object_class_property_init_all(obj);
     obj->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
                                             NULL, object_property_free);
+
+    /* 对象初始化 */
     object_init_with_type(obj, type);
     object_post_init_with_type(obj, type);
 }
@@ -556,6 +559,7 @@ void object_initialize(void *data, size_t size, const char *typename)
         abort();
     }
 
+    /* 对象初始化 */
     object_initialize_with_type(data, size, type);
 }
 
@@ -1504,6 +1508,12 @@ bool object_property_set_bool(Object *obj, const char *name,
                               bool value, Error **errp)
 {
     QBool *qbool = qbool_from_bool(value);
+
+    
+    /* 设置某个object的属性，即命令行中的参数。
+     * 例如：
+     * -device e1000,mac=00:16:3e:01:01:01,netdev=net0  中的mac，netdev的参数。
+     */
     bool ok = object_property_set_qobject(obj, name, QOBJECT(qbool), errp);
 
     qobject_unref(qbool);

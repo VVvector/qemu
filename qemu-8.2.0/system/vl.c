@@ -1194,6 +1194,10 @@ static int device_help_func(void *opaque, QemuOpts *opts, Error **errp)
     return qdev_device_help(opts);
 }
 
+/* 根据参数添加具体的设备：
+ * 当Qemu命令通过-device传入参数时，device_init_func会根据参数去查找设备，
+ * 并最终调用到该设备对应的类初始化函数、对象初始化函数、以及realize函数。
+ */
 static int device_init_func(void *opaque, QemuOpts *opts, Error **errp)
 {
     DeviceState *dev;
@@ -2008,6 +2012,7 @@ static void qemu_create_late_backends(void)
     }
 
     /* 网络后端的初始化 */
+    MY_DEBUG("net clients init");
     net_init_clients();
 
     object_option_foreach_add(object_create_late);
@@ -2109,6 +2114,8 @@ static void qemu_create_machine(QDict *qdict)
         }
     }
 
+    /* 内存布局初始化 */
+    MY_DEBUG("memory init: io memory, memory map");
     cpu_exec_init_all();
     page_size_init();
 
@@ -2323,6 +2330,8 @@ static int do_configure_accelerator(void *opaque, QemuOpts *opts, Error **errp)
          */
         object_property_set_bool(OBJECT(accel), "one-insn-per-tb", true, NULL);
     }
+
+    /* 配置当前机器加速 - 例如 kvm */
     ret = accel_init_machine(accel, current_machine);
     if (ret < 0) {
         if (!qtest_with_kvm || ret != -ENOENT) {
@@ -2392,6 +2401,7 @@ static void configure_accelerators(const char *progname)
         }
     }
 
+    /* 配置 */
     if (!qemu_opts_foreach(qemu_find_opts("accel"),
                            do_configure_accelerator, &init_failed, &error_fatal)) {
         if (!init_failed) {
@@ -2611,6 +2621,7 @@ static void qemu_init_board(void)
     /* process plugin before CPUs are created, but once -smp has been parsed */
     qemu_plugin_load_list(&plugin_list, &error_fatal);
 
+    /* machine初始化 */
     /* From here on we enter MACHINE_PHASE_INITIALIZED.  */
     machine_run_board_init(current_machine, mem_path, &error_fatal);
 
@@ -2635,9 +2646,12 @@ static void qemu_create_cli_devices(void)
     }
 
     /* init generic devices */
+    /* 初始化所有的device */
+    MY_DEBUG("device init start");
     rom_set_order_override(FW_CFG_ORDER_OVERRIDE_DEVICE);
     qemu_opts_foreach(qemu_find_opts("device"),
                       device_init_func, NULL, &error_fatal);
+
     QTAILQ_FOREACH(opt, &device_opts, next) {
         DeviceState *dev;
         loc_push_restore(&opt->loc);
@@ -2703,8 +2717,14 @@ void qmp_x_exit_preconfig(Error **errp)
         return;
     }
 
+    /* machine相关初始化 */
+    MY_DEBUG("machine init");
     qemu_init_board();
+
+    /* create device */
+    MY_DEBUG("qemu create devices");
     qemu_create_cli_devices();
+
     qemu_machine_creation_done();
 
     if (loadvm) {
@@ -2771,6 +2791,9 @@ void qemu_init(int argc, char **argv)
     qemu_add_opts(&qemu_fw_cfg_opts);
     qemu_add_opts(&qemu_action_opts);
     qemu_add_run_with_opts();
+
+    /* 模块初始化 */
+    MY_DEBUG("module call init");
     module_call_init(MODULE_INIT_OPTS);
 
     error_init(argv[0]);
@@ -3678,6 +3701,8 @@ void qemu_init(int argc, char **argv)
     /* Transfer QemuOpts options into machine options */
     parse_memory_options();
 
+    /* 虚拟机machine相关初始化 */
+    MY_DEBUG("create machine");
     qemu_create_machine(machine_opts_dict);
 
     suspend_mux_open();
@@ -3696,6 +3721,8 @@ void qemu_init(int argc, char **argv)
      * Note: uses machine properties such as kernel-irqchip, must run
      * after qemu_apply_machine_options.
      */
+    /* kvm相关初始化 */
+    MY_DEBUG("configure accelerators: kvm init");
     configure_accelerators(argv[0]);
     phase_advance(PHASE_ACCEL_CREATED);
 
@@ -3726,6 +3753,10 @@ void qemu_init(int argc, char **argv)
      * check against compatibilities on the backend memories (e.g. postcopy
      * over memory-backend-file objects).
      */
+    /* 创建网络后端设备
+     * 在启动命令行中，-netdev后面的设备。例如，Tap设备。
+     */
+    MY_DEBUG("create backends");
     qemu_create_late_backends();
 
     /*
@@ -3751,6 +3782,10 @@ void qemu_init(int argc, char **argv)
         exit(0);
     }
 
+    /* 设备初始化
+     * 在启动命令行中 -device后面的设备。例如, Virtio-Net, e1000等。
+     */
+    MY_DEBUG("preconfig start");
     if (!preconfig_requested) {
         qmp_x_exit_preconfig(&error_fatal);
     }

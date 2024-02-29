@@ -291,6 +291,7 @@ bool qdev_realize(DeviceState *dev, BusState *bus, Error **errp)
         assert(!DEVICE_GET_CLASS(dev)->bus_type);
     }
 
+    /* 会调用具体objec的realize函数。 */
     return object_property_set_bool(OBJECT(dev), "realized", true, errp);
 }
 

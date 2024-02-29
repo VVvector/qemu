@@ -1506,6 +1506,8 @@ void machine_run_board_init(MachineState *machine, const char *mem_path, Error *
     }
 
     accel_init_interfaces(ACCEL_GET_CLASS(machine->accelerator));
+
+    /* machine初始化，例如：ARMv8 machvirt_init() -- hw/arm/virt.c */
     machine_class->init(machine);
     phase_advance(PHASE_MACHINE_INITIALIZED);
 }

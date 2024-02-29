@@ -632,6 +632,7 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
         return NULL;
     }
 
+    /* class的初始化，最终回调某个类和对象的 xx_class_init() */
     /* find driver */
     dc = qdev_get_device_class(&driver, errp);
     if (!dc) {
@@ -678,7 +679,8 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
         return NULL;
     }
 
-    //fprintf(stderr, "create device\n");
+    /* 具体device的实例化，最终回调某个类和对象的 xx_instance_init() */
+    MY_DEBUG("create device");
     /* create device */
     dev = qdev_new(driver);
 
@@ -711,13 +713,22 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
     qdict_del(dev->opts, "bus");
     qdict_del(dev->opts, "id");
 
+    /* 设置该device的各种属性。
+     * 一般用 device_class_set_props() 进行注册的。
+     */
     object_set_properties_from_keyval(&dev->parent_obj, dev->opts, from_json,
                                       errp);
     if (*errp) {
         goto err_del_dev;
     }
 
-    //fprintf(stderr, "realize device\n");
+    /* 具体device的实例的初始化，最终回调某个类和对象的 xxx_realize()。
+     *
+     * realize的调用，比较绕，简单来说，它的类继承关系中存在多个realize的函数指针，
+     * 最终会从父类开始执行，一直调用到子类，而这些函数指针的初始化在什么时候做的呢？
+     * 没错，就是在class_init类初始化的时候，进行了赋值，细节不表，结论可靠；
+     */
+    MY_DEBUG("realize device\n");
     if (!qdev_realize(dev, bus, errp)) {
         goto err_del_dev;
     }

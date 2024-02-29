@@ -2320,6 +2320,7 @@ uint32_t kvm_dirty_ring_size(void)
     return kvm_state->kvm_dirty_ring_size;
 }
 
+/* kvm初始化，在accel/accel.c中，accel_init_machine()中被调用 */
 static int kvm_init(MachineState *ms)
 {
     MachineClass *mc = MACHINE_GET_CLASS(ms);
