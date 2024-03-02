@@ -967,7 +967,7 @@ int qemu_find_net_clients_except(const char *id, NetClientState **ncs,
     NetClientState *nc;
     int ret = 0;
 
-    fprintf(stderr, "qemu_find_net_clients_except, name:%s\n", id);
+    MY_DEBUG("qemu_find_net_clients_except, name:%s", id);
 
     /* 
      *遍历整个后端链 - net_clients。

@@ -1673,10 +1673,10 @@ void show_conf(NICConf *conf)
 {
     int i;
 
-    DBGOUT(GENERAL, "conf->peers.queues:%d\n", conf->peers.queues);
+    MY_DEBUG("conf->peers.queues:%d", conf->peers.queues);
 
     for (i = 0; i < conf->peers.queues; i++)
-        DBGOUT(GENERAL, "peers->ncs[i] name: %s\n", conf->peers.ncs[i]->name);
+        MY_DEBUG("peers->ncs[i] name: %s\n", conf->peers.ncs[i]->name);
 }
 
 static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
@@ -1769,7 +1769,7 @@ static void e1000_class_init(ObjectClass *klass, void *data)
     E1000BaseClass *e = E1000_CLASS(klass);
     const E1000Info *info = data;
 
-    DBGOUT(GENERAL, "e1000 class init, name:%s\n", info->name);
+    MY_DEBUG("e1000 class init, name:%s", info->name);
 
     /* 初始化 */
     k->realize = pci_e1000_realize;
@@ -1796,13 +1796,12 @@ static void e1000_instance_init(Object *obj)
     E1000State *n = E1000(obj);
 
     /* 这里conf还没有被初始化 */
-    DBGOUT(GENERAL, "e1000 instance init\n");
-    show_conf(&n->conf);
+    MY_DEBUG("e1000 instance init");
     device_add_bootindex_property(obj, &n->conf.bootindex,
                                   "bootindex", "/ethernet-phy@0",
                                   DEVICE(n));
 
-    /* 也没有被初始化 */
+    /* conf没有被初始化 */
     show_conf(&n->conf);
 }
 

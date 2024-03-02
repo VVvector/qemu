@@ -1424,6 +1424,7 @@ bool object_property_get(Object *obj, const char *name, Visitor *v,
     return !err;
 }
 
+/* 执行object的propert，例如，e1000的 e1000_properties */
 bool object_property_set(Object *obj, const char *name, Visitor *v,
                          Error **errp)
 {

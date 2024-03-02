@@ -408,7 +408,7 @@ static void set_netdev(Object *obj, Visitor *v, const char *name,
     int queues, err = 0, i = 0;
     char *str;
 
-    fprintf(stderr, "set netdev\n");
+    MY_DEBUG("set netdev");
 
     if (!visit_type_str(v, name, &str, errp)) {
         return;

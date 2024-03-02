@@ -715,6 +715,8 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
 
     /* 设置该device的各种属性。
      * 一般用 device_class_set_props() 进行注册的。
+     * 例如，网卡设备e1000的 e1000_properties中 netdev参数，
+     * 就是这里解析执行 set_netdev()，初始化 E1000State conf的配置 。
      */
     object_set_properties_from_keyval(&dev->parent_obj, dev->opts, from_json,
                                       errp);
@@ -728,7 +730,7 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
      * 最终会从父类开始执行，一直调用到子类，而这些函数指针的初始化在什么时候做的呢？
      * 没错，就是在class_init类初始化的时候，进行了赋值，细节不表，结论可靠；
      */
-    MY_DEBUG("realize device\n");
+    MY_DEBUG("realize device");
     if (!qdev_realize(dev, bus, errp)) {
         goto err_del_dev;
     }
