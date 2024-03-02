@@ -4,11 +4,12 @@ participant main.c as A
 participant vl.c as B
 participant module.c as C
 participant physmem.c as E
+participant "accel-system.c" as I
+participant "kvm-all.c" as J
 participant net.c as F
 participant "qdev-monitor.c" as G
 participant qdev.c as H
-participant "accel-system.c" as I
-participant "kvm-all.c" as J
+participant "object_interfaces.c" as K
 
 
 A -> B: qemu_init
@@ -64,6 +65,7 @@ B -> B: qemu_create_late_backends
 note over B
     网络后端初始化，
     例如，启动命令行中 -netdev等指定的设备
+    -netdev tap,id=net0,ifname=tap1,script=no,downscript=no
 end note
 activate B
 B -> F: net_init_clients
@@ -80,6 +82,7 @@ note over B
     设备初始化
     在启动命令行中 -device后面的设备。
     例如, Virtio-Net, e1000等。
+     -device e1000,mac=00:16:3e:01:01:01,netdev=net0
 end note
 activate B
     B->B: qemu_init_board
@@ -108,6 +111,16 @@ note over H
     2. device实例化
 end note
 H --> G: return
+G -> K: object_set_properties_from_keyval
+note over K
+    设置device的属性，即device用device_class_set_props()注册的，cmd参数代入的。
+    例如：e1000的 netdev 参数。 会调用到 set_netdev() 函数进行设置。
+        会该前端对应的后端设备 - 以netdev参数做匹配后端netdev的id字段。
+        device_class_set_props(dc, e1000_properties);
+        -device e1000,mac=00:16:3e:01:01:01,netdev=net0
+end note
+K --> G: return
+
 
 G -> H: qdev_realize
 note over H
